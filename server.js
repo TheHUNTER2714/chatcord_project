@@ -44,7 +44,12 @@ io.on("connection", (socket) => {
   socket.on("join_room", ({ roomCode, user }) => {
     const room = rooms.get(roomCode);
     if (!room) return socket.emit("room_not_found");
+    
+    const alreadyInRoom = room.users.some(u => u.id === socket.id);
+  if (!alreadyInRoom) {
     room.users.push({ id: socket.id, name: user.name });
+  }
+
     userRooms.set(socket.id, roomCode);
     socket.join(roomCode);
     socket.emit("room_joined", { room, users: room.users });
