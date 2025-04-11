@@ -1,0 +1,854 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ChatCord - Private Chat Rooms</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.2.1/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js"></script>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(120deg, #6a11cb 0%, #2575fc 100%);
+            background-size: 400% 400%;
+            animation: gradient 15s ease infinite;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        @keyframes gradient {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        #particles-js {
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            z-index: -1;
+        }
+
+        .chat-container {
+            height: calc(100vh - 180px);
+            min-height: 400px;
+        }
+        
+        .messages-container {
+            height: calc(100% - 60px);
+            overflow-y: auto;
+            scroll-behavior: smooth;
+        }
+        
+        .user-list {
+            height: 100%;
+            overflow-y: auto;
+            scroll-behavior: smooth;
+        }
+        
+        .message {
+            border-radius: 1.5rem;
+            max-width: 80%;
+            word-break: break-word;
+            transition: all 0.3s ease;
+            animation: fadeIn 0.5s;
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .message.self {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            align-self: flex-end;
+            border-bottom-right-radius: 0.25rem;
+        }
+        
+        .message.other {
+            background: white;
+            color: #4a5568;
+            align-self: flex-start;
+            border-bottom-left-radius: 0.25rem;
+        }
+        
+        .typing-animation span {
+            animation: blink 1.4s infinite both;
+        }
+        
+        .typing-animation span:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+        
+        .typing-animation span:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+        
+        @keyframes blink {
+            0% { opacity: 0.1; }
+            20% { opacity: 1; }
+            100% { opacity: 0.1; }
+        }
+
+        .page-transition {
+            animation: fadeInScale 0.4s ease-out;
+        }
+
+        @keyframes fadeInScale {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        .btn {
+            transition: all 0.3s ease;
+            transform: translateY(0);
+            box-shadow: 0 4px 6px rgba(50, 50, 93, 0.11), 0 1px 3px rgba(0, 0, 0, 0.08);
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 7px 14px rgba(50, 50, 93, 0.1), 0 3px 6px rgba(0, 0, 0, 0.08);
+        }
+
+        .btn:active {
+            transform: translateY(1px);
+        }
+
+        .glass-effect {
+            background: rgba(255, 255, 255, 0.25);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+        }
+
+        .user-item {
+            transition: all 0.3s ease;
+        }
+
+        .user-item:hover {
+            transform: translateX(5px);
+        }
+
+        .container {
+            max-width: 1200px;
+        }
+
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 10px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.5);
+        }
+
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px;
+            border-radius: 10px;
+            background: #4CAF50;
+            color: white;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            z-index: 1000;
+            animation: slideIn 0.5s, fadeOut 0.5s 2.5s forwards;
+            display: none;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        @keyframes fadeOut {
+            from { opacity: 1; }
+            to { opacity: 0; visibility: hidden; }
+        }
+        
+        /* For PDF optimizations */
+        @media print {
+            body {
+                width: 100%;
+                height: auto;
+                overflow: visible;
+                background: white;
+            }
+            
+            #particles-js {
+                display: none;
+            }
+            
+            .chat-container {
+                height: auto;
+                min-height: auto;
+            }
+            
+            .messages-container, .user-list {
+                height: auto;
+                overflow: visible;
+            }
+
+            .container {
+                width: 100%;
+                max-width: none;
+            }
+
+            .glass-effect {
+                background: white;
+                border: 1px solid #e2e8f0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="particles-js"></div>
+
+    <div id="notification" class="notification">
+        <span id="notification-text">Message sent!</span>
+    </div>
+
+    <div class="container mx-auto px-4 py-8">
+        <!-- Logo and Header -->
+        <div class="text-center mb-8">
+            <h1 class="text-5xl font-bold text-white drop-shadow-lg">ChatCord</h1>
+            <p class="text-white text-opacity-90 mt-2 text-lg">Create or join private chat rooms with access codes</p>
+        </div>
+        
+        <!-- Landing Page -->
+        <div id="landing-page" class="max-w-md mx-auto glass-effect p-8 rounded-2xl shadow-xl page-transition">
+            <div class="mb-6">
+                <label for="username" class="block text-white font-medium mb-2">Your Display Name</label>
+                <input type="text" id="username" class="w-full px-4 py-3 border-0 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white bg-opacity-90 backdrop-filter backdrop-blur-sm transition-all duration-200" placeholder="Enter your name">
+            </div>
+            
+            <div class="flex flex-col space-y-5">
+                <button id="create-room-btn" class="btn bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-3 px-4 rounded-xl hover:from-indigo-700 hover:to-purple-700 transition duration-300 flex items-center justify-center font-medium">
+                    <i class="fas fa-plus-circle mr-2"></i> Create New Room
+                </button>
+                
+                <div class="relative">
+                    <div class="absolute inset-0 flex items-center">
+                        <div class="w-full border-t border-white border-opacity-30"></div>
+                    </div>
+                    <div class="relative flex justify-center text-sm">
+                        <span class="px-2 glass-effect text-white rounded-full">OR</span>
+                    </div>
+                </div>
+                
+                <div>
+                    <label for="room-code" class="block text-white font-medium mb-2">Join Existing Room</label>
+                    <div class="flex shadow-sm">
+                        <input type="text" id="room-code" class="flex-1 px-4 py-3 border-0 rounded-l-xl focus:outline-none focus:ring-2 focus:ring-green-500 bg-white bg-opacity-90 backdrop-filter backdrop-blur-sm transition-all duration-200 uppercase" placeholder="Enter room code">
+                        <button id="join-room-btn" class="btn bg-gradient-to-r from-green-500 to-teal-500 text-white py-3 px-5 rounded-r-xl hover:from-green-600 hover:to-teal-600 transition duration-300 font-medium">
+                            <i class="fas fa-sign-in-alt mr-2"></i> Join
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Room Creation Page -->
+        <div id="create-room-page" class="max-w-md mx-auto glass-effect p-8 rounded-2xl shadow-xl hidden page-transition">
+            <h2 class="text-2xl font-bold text-center mb-6 text-white">Create a New Room</h2>
+            
+            <div class="mb-6">
+                <label for="new-room-name" class="block text-white font-medium mb-2">Room Name</label>
+                <input type="text" id="new-room-name" class="w-full px-4 py-3 border-0 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white bg-opacity-90 backdrop-filter backdrop-blur-sm transition-all duration-200" placeholder="Give your room a name">
+            </div>
+            
+            <div class="flex justify-between">
+                <button id="create-room-back-btn" class="btn bg-white bg-opacity-20 text-white py-2 px-5 rounded-xl hover:bg-opacity-30 transition duration-300 font-medium">
+                    <i class="fas fa-arrow-left mr-2"></i> Back
+                </button>
+                <button id="create-room-confirm-btn" class="btn bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-2 px-5 rounded-xl hover:from-indigo-700 hover:to-purple-700 transition duration-300 font-medium">
+                    <i class="fas fa-check-circle mr-2"></i> Create Room
+                </button>
+            </div>
+        </div>
+        
+        <!-- Room Code Display Page -->
+        <div id="room-code-page" class="max-w-md mx-auto glass-effect p-8 rounded-2xl shadow-xl hidden page-transition">
+            <h2 class="text-2xl font-bold text-center mb-6 text-white">Room Created Successfully!</h2>
+            
+            <div class="mb-8 text-center">
+                <p class="text-white text-opacity-90 mb-4">Share this code with others to invite them to your room:</p>
+                <div class="flex items-center justify-center">
+                    <div id="room-code-display" class="bg-indigo-900 bg-opacity-50 font-mono text-2xl py-4 px-8 rounded-lg border-2 border-indigo-300 inline-block text-white tracking-wider">CODE</div>
+                    <button id="copy-code-btn" class="ml-3 btn bg-white text-indigo-800 p-3 rounded-lg hover:bg-opacity-90 transition duration-300" title="Copy to clipboard">
+                        <i class="fas fa-copy"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="flex justify-center">
+                <button id="enter-room-btn" class="btn bg-gradient-to-r from-green-500 to-teal-500 text-white py-3 px-8 rounded-xl hover:from-green-600 hover:to-teal-600 transition duration-300 font-medium">
+                    <i class="fas fa-door-open mr-2"></i> Enter Room
+                </button>
+            </div>
+        </div>
+        
+        <!-- Chat Room Page -->
+        <div id="chat-room-page" class="max-w-5xl mx-auto glass-effect rounded-2xl shadow-xl hidden page-transition overflow-hidden">
+            <div class="bg-gradient-to-r from-indigo-800 to-purple-800 text-white p-5 rounded-t-2xl flex justify-between items-center">
+                <div>
+                    <h2 id="room-name-display" class="text-2xl font-bold">Room Name</h2>
+                    <div class="flex items-center text-sm opacity-90">
+                        <span>Code: </span>
+                        <span id="room-code-badge" class="ml-2 bg-white bg-opacity-20 px-3 py-1 rounded-xl font-mono">CODE</span>
+                        <button id="copy-code-btn-2" class="ml-2 text-white text-opacity-70 hover:text-opacity-100 transition duration-200" title="Copy to clipboard">
+                            <i class="fas fa-copy"></i>
+                        </button>
+                    </div>
+                </div>
+                <button id="leave-room-btn" class="btn bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-xl transition duration-300">
+                    <i class="fas fa-sign-out-alt mr-1"></i> Leave
+                </button>
+            </div>
+            
+            <div class="p-5 grid grid-cols-1 md:grid-cols-4 gap-5 chat-container">
+                <!-- User List -->
+                <div class="hidden md:block md:col-span-1 bg-white bg-opacity-10 rounded-xl p-4">
+                    <h3 class="font-bold text-white pb-3 border-b border-white border-opacity-20">Users in Room</h3>
+                    <ul id="user-list" class="mt-3 space-y-3 user-list">
+                        <!-- Users will be added here -->
+                    </ul>
+                </div>
+                
+                <!-- Chat Area -->
+                <div class="col-span-1 md:col-span-3 flex flex-col">
+                    <div id="messages-container" class="flex-1 overflow-y-auto p-5 bg-white bg-opacity-10 rounded-xl mb-4 flex flex-col space-y-4 messages-container">
+                        <!-- Messages will be added here -->
+                        <div class="text-center text-white text-opacity-80 my-6">
+                            <p class="text-lg">Welcome to the chat room!</p>
+                            <p class="text-sm mt-2">Start sending messages to communicate.</p>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-auto">
+                        <form id="message-form" class="flex shadow-lg">
+                            <input type="text" id="message-input" class="flex-1 px-5 py-3 border-0 rounded-l-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white bg-opacity-90 backdrop-filter backdrop-blur-sm transition-all duration-200" placeholder="Type a message...">
+                            <button type="submit" class="btn bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-3 px-5 rounded-r-xl hover:from-indigo-700 hover:to-purple-700 transition duration-300">
+                                <i class="fas fa-paper-plane"></i>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Particles.js configuration
+        document.addEventListener('DOMContentLoaded', function() {
+            particlesJS('particles-js', {
+                "particles": {
+                    "number": {
+                        "value": 80,
+                        "density": {
+                            "enable": true,
+                            "value_area": 800
+                        }
+                    },
+                    "color": {
+                        "value": "#ffffff"
+                    },
+                    "shape": {
+                        "type": "circle",
+                        "stroke": {
+                            "width": 0,
+                            "color": "#000000"
+                        },
+                        "polygon": {
+                            "nb_sides": 5
+                        }
+                    },
+                    "opacity": {
+                        "value": 0.5,
+                        "random": false,
+                        "anim": {
+                            "enable": false,
+                            "speed": 1,
+                            "opacity_min": 0.1,
+                            "sync": false
+                        }
+                    },
+                    "size": {
+                        "value": 3,
+                        "random": true,
+                        "anim": {
+                            "enable": false,
+                            "speed": 40,
+                            "size_min": 0.1,
+                            "sync": false
+                        }
+                    },
+                    "line_linked": {
+                        "enable": true,
+                        "distance": 150,
+                        "color": "#ffffff",
+                        "opacity": 0.4,
+                        "width": 1
+                    },
+                    "move": {
+                        "enable": true,
+                        "speed": 2,
+                        "direction": "none",
+                        "random": false,
+                        "straight": false,
+                        "out_mode": "out",
+                        "bounce": false,
+                        "attract": {
+                            "enable": false,
+                            "rotateX": 600,
+                            "rotateY": 1200
+                        }
+                    }
+                },
+                "interactivity": {
+                    "detect_on": "canvas",
+                    "events": {
+                        "onhover": {
+                            "enable": true,
+                            "mode": "grab"
+                        },
+                        "onclick": {
+                            "enable": true,
+                            "mode": "push"
+                        },
+                        "resize": true
+                    },
+                    "modes": {
+                        "grab": {
+                            "distance": 140,
+                            "line_linked": {
+                                "opacity": 1
+                            }
+                        },
+                        "bubble": {
+                            "distance": 400,
+                            "size": 40,
+                            "duration": 2,
+                            "opacity": 8,
+                            "speed": 3
+                        },
+                        "repulse": {
+                            "distance": 200,
+                            "duration": 0.4
+                        },
+                        "push": {
+                            "particles_nb": 4
+                        },
+                        "remove": {
+                            "particles_nb": 2
+                        }
+                    }
+                },
+                "retina_detect": true
+            });
+        });
+
+        // Notification system
+        function showNotification(message) {
+            const notification = document.getElementById('notification');
+            const notificationText = document.getElementById('notification-text');
+            
+            notificationText.textContent = message;
+            notification.style.display = 'block';
+            
+            setTimeout(() => {
+                notification.style.display = 'none';
+            }, 3000);
+        }
+
+        // Utility functions
+        function generateRoomCode() {
+            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+            let code = '';
+            for (let i = 0; i < 6; i++) {
+                code += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            return code;
+        }
+        
+        function getCurrentTimestamp() {
+            return new Date().toISOString();
+        }
+        
+        function formatTime(timestamp) {
+            const date = new Date(timestamp);
+            return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+        
+        // DOM Elements
+        const landingPage = document.getElementById('landing-page');
+        const createRoomPage = document.getElementById('create-room-page');
+        const roomCodePage = document.getElementById('room-code-page');
+        const chatRoomPage = document.getElementById('chat-room-page');
+        
+        const usernameInput = document.getElementById('username');
+        const createRoomBtn = document.getElementById('create-room-btn');
+        const joinRoomBtn = document.getElementById('join-room-btn');
+        const roomCodeInput = document.getElementById('room-code');
+        
+        const createRoomBackBtn = document.getElementById('create-room-back-btn');
+        const newRoomNameInput = document.getElementById('new-room-name');
+        const createRoomConfirmBtn = document.getElementById('create-room-confirm-btn');
+        
+        const roomCodeDisplay = document.getElementById('room-code-display');
+        const copyCodeBtn = document.getElementById('copy-code-btn');
+        const enterRoomBtn = document.getElementById('enter-room-btn');
+        
+        const roomNameDisplay = document.getElementById('room-name-display');
+        const roomCodeBadge = document.getElementById('room-code-badge');
+        const copyCodeBtn2 = document.getElementById('copy-code-btn-2');
+        const leaveRoomBtn = document.getElementById('leave-room-btn');
+        
+        const userList = document.getElementById('user-list');
+        const messagesContainer = document.getElementById('messages-container');
+        const messageForm = document.getElementById('message-form');
+        const messageInput = document.getElementById('message-input');
+        
+        // Application State
+        let currentUser = null;
+        let currentRoom = null;
+        let socket = null;
+        
+        // Initialize Application
+        function init() {
+            // Connect to Socket.io server
+                socket = io(location.origin, {
+                transports: ['websocket'],
+                reconnection: true,
+                reconnectionAttempts: 5,
+                reconnectionDelay: 1000
+            });
+
+            // Socket.io event handlers
+            socket.on('connect', () => {
+                console.log('Connected to server');
+            });
+
+            socket.on('disconnect', () => {
+                console.log('Disconnected from server');
+            });
+
+            socket.on('connect_error', (err) => {
+                console.error('Connection error:', err);
+                showNotification('Connection error. Trying to reconnect...');
+            });
+
+            socket.on('room_created', (room) => {
+                currentRoom = room;
+                roomCodeDisplay.textContent = room.code;
+                createRoomPage.classList.add('hidden');
+                roomCodePage.classList.remove('hidden');
+                showNotification('Room created successfully!');
+            });
+
+            socket.on('room_joined', ({ room, users }) => {
+                currentRoom = room;
+                roomNameDisplay.textContent = room.name;
+                roomCodeBadge.textContent = room.code;
+                landingPage.classList.add('hidden');
+                createRoomPage.classList.add('hidden');
+                roomCodePage.classList.add('hidden');
+                chatRoomPage.classList.remove('hidden');
+                updateUserList(users);
+                showNotification(`Joined room: ${room.name}`);
+                messageInput.focus();
+            });
+
+            socket.on('user_joined', (user) => {
+                showNotification(`${user.name} joined the room`);
+                loadUsers();
+            });
+
+            socket.on('user_left', (user) => {
+                showNotification(`${user.name} left the room`);
+                loadUsers();
+            });
+
+            socket.on('new_message', (message) => {
+                addMessageToUI(message);
+                scrollToBottom();
+            });
+
+            socket.on('room_users', (users) => {
+                updateUserList(users);
+            });
+
+            socket.on('room_not_found', () => {
+                showNotification('Room not found. Please check the code and try again.');
+                roomCodeInput.classList.add('ring-2', 'ring-red-500');
+                setTimeout(() => {
+                    roomCodeInput.classList.remove('ring-red-500');
+                }, 2000);
+            });
+
+            // Set up event listeners
+            createRoomBtn.addEventListener('click', handleCreateRoomClick);
+            joinRoomBtn.addEventListener('click', handleJoinRoomClick);
+            createRoomBackBtn.addEventListener('click', () => {
+                createRoomPage.classList.add('hidden');
+                landingPage.classList.remove('hidden');
+            });
+            createRoomConfirmBtn.addEventListener('click', handleCreateRoomConfirm);
+            copyCodeBtn.addEventListener('click', () => copyToClipboard(roomCodeDisplay.textContent));
+            enterRoomBtn.addEventListener('click', () => enterChatRoom(currentRoom.code));
+            leaveRoomBtn.addEventListener('click', handleLeaveRoom);
+            copyCodeBtn2.addEventListener('click', () => copyToClipboard(roomCodeBadge.textContent));
+            messageForm.addEventListener('submit', handleSendMessage);
+
+            // Add input placeholder animation
+            const inputs = document.querySelectorAll('input');
+            inputs.forEach(input => {
+                input.addEventListener('focus', function() {
+                    this.classList.add('ring-2');
+                });
+                input.addEventListener('blur', function() {
+                    if (!this.value) {
+                        this.classList.remove('ring-2');
+                    }
+                });
+            });
+
+            // Focus username on load
+            setTimeout(() => {
+                usernameInput.focus();
+            }, 500);
+        }
+        
+        // Event Handlers
+        function handleCreateRoomClick() {
+            const username = usernameInput.value.trim();
+            if (!username) {
+                showNotification('Please enter your name first!');
+                usernameInput.classList.add('ring-2', 'ring-red-500');
+                setTimeout(() => {
+                    usernameInput.classList.remove('ring-red-500');
+                }, 2000);
+                usernameInput.focus();
+                return;
+            }
+            
+            // Store username
+            currentUser = {
+                id: socket.id,
+                name: username
+            };
+            
+            // Show room creation form
+            landingPage.classList.add('hidden');
+            createRoomPage.classList.remove('hidden');
+            
+            // Focus on room name input
+            setTimeout(() => {
+                newRoomNameInput.focus();
+            }, 300);
+        }
+        
+        function handleJoinRoomClick() {
+            const username = usernameInput.value.trim();
+            const roomCode = roomCodeInput.value.trim().toUpperCase();
+            
+            if (!username) {
+                showNotification('Please enter your name first!');
+                usernameInput.classList.add('ring-2', 'ring-red-500');
+                setTimeout(() => {
+                    usernameInput.classList.remove('ring-red-500');
+                }, 2000);
+                usernameInput.focus();
+                return;
+            }
+            
+            if (!roomCode) {
+                showNotification('Please enter a room code!');
+                roomCodeInput.classList.add('ring-2', 'ring-red-500');
+                setTimeout(() => {
+                    roomCodeInput.classList.remove('ring-red-500');
+                }, 2000);
+                roomCodeInput.focus();
+                return;
+            }
+            
+            // Store username
+            currentUser = {
+                id: socket.id,
+                name: username
+            };
+            
+            // Try to join the room
+            socket.emit('join_room', {
+                roomCode: roomCode,
+                user: currentUser
+            });
+        }
+        
+        function handleCreateRoomConfirm() {
+            const roomName = newRoomNameInput.value.trim();
+            if (!roomName) {
+                showNotification('Please give your room a name!');
+                newRoomNameInput.classList.add('ring-2', 'ring-red-500');
+                setTimeout(() => {
+                    newRoomNameInput.classList.remove('ring-red-500');
+                }, 2000);
+                newRoomNameInput.focus();
+                return;
+            }
+            
+            // Create a new room
+            socket.emit('create_room', {
+                roomName: roomName,
+                user: currentUser
+            });
+        }
+        
+        function handleLeaveRoom() {
+            if (!currentRoom || !currentUser) return;
+            
+            // Leave the room
+            socket.emit('leave_room', {
+                roomCode: currentRoom.code,
+                userId: currentUser.id
+            });
+            
+            // Reset state
+            currentUser = null;
+            currentRoom = null;
+            
+            // Clear messages and users
+            messagesContainer.innerHTML = `
+                <div class="text-center text-white text-opacity-80 my-6">
+                    <p class="text-lg">Welcome to the chat room!</p>
+                    <p class="text-sm mt-2">Start sending messages to communicate.</p>
+                </div>
+            `;
+            userList.innerHTML = '';
+            
+            // Go back to landing page
+            chatRoomPage.classList.add('hidden');
+            landingPage.classList.remove('hidden');
+            
+            // Clear inputs
+            messageInput.value = '';
+            showNotification('You have left the room');
+        }
+        
+        function handleSendMessage(e) {
+            e.preventDefault();
+            const messageText = messageInput.value.trim();
+            if (!messageText || !currentRoom || !currentUser) return;
+            
+            // Create message
+            const message = {
+                roomCode: currentRoom.code,
+                userId: currentUser.id,
+                userName: currentUser.name,
+                text: messageText,
+                timestamp: getCurrentTimestamp()
+            };
+            
+            // Send message
+            socket.emit('send_message', message);
+            
+            // Clear input
+            messageInput.value = '';
+            
+            // Focus back on input
+            messageInput.focus();
+        }
+        
+        function enterChatRoom(roomCode) {
+            if (!currentUser) return;
+            
+            socket.emit('join_room', {
+                roomCode: roomCode,
+                user: currentUser
+            });
+        }
+        
+        function loadUsers() {
+            if (!currentRoom) return;
+            
+            socket.emit('get_room_users', {
+                roomCode: currentRoom.code
+            });
+        }
+        
+        function updateUserList(users) {
+            if (!userList) return;
+            
+            userList.innerHTML = '';
+            
+            users.forEach(user => {
+                const li = document.createElement('li');
+                li.className = 'flex items-center user-item p-2 rounded-lg hover:bg-white hover:bg-opacity-10 cursor-pointer';
+                
+                const isCurrentUser = user.id === currentUser?.id;
+                
+                li.innerHTML = `
+                    <div class="w-2 h-2 bg-green-400 rounded-full mr-3"></div>
+                    <span class="text-white ${isCurrentUser ? 'font-semibold' : ''}">${user.name}</span>
+                    ${isCurrentUser ? ' <span class="ml-2 text-xs text-white text-opacity-70">(you)</span>' : ''}
+                `;
+                
+                userList.appendChild(li);
+            });
+        }
+        
+        function addMessageToUI(message) {
+            const isSelf = message.userId === currentUser?.id;
+            const div = document.createElement('div');
+            div.className = `message ${isSelf ? 'self' : 'other'} p-4 my-1`;
+            
+            div.innerHTML = `
+                ${!isSelf ? `<div class="font-bold text-xs mb-1">${message.userName}</div>` : ''}
+                <div>${message.text}</div>
+                <div class="text-xs opacity-70 mt-1 ${isSelf ? 'text-blue-100' : 'text-gray-600'} text-right">
+                    ${formatTime(message.timestamp)}
+                </div>
+            `;
+            
+            messagesContainer.appendChild(div);
+        }
+        
+        function scrollToBottom() {
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+        
+        // Helper functions
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text)
+                .then(() => {
+                    showNotification('Code copied to clipboard!');
+                })
+                .catch(err => {
+                    console.error('Failed to copy: ', err);
+                    showNotification('Failed to copy code');
+                });
+        }
+        
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+
+</html>
